@@ -4,6 +4,23 @@
 #include <string.h>
 #include <stdio.h>
 #include <Xlib.h>
+#include "libappindicator/app-indicator.h"
+#include "libdbusmenu-glib/server.h"
+#include "libdbusmenu-glib/menuitem.h"
+
+GMainLoop *mainloop = NULL;
+static GtkWidget *local_icon_menu = NULL;
+static GtkWidget *local_theme_menu = NULL;
+static gboolean active = TRUE;
+static gboolean changed_active = FALSE;
+static gboolean can_haz_label = TRUE;
+
+#define DEFAULT_ICON "tray-online"
+#define DEFAULT_ACTIVE_ICON "tray-new-im"
+
+#define LOCAL_ICON ICON_PATH G_DIR_SEPARATOR_S "simple-client-test-icon.png"
+#define LOCAL_ACTIVE_ICON PREFIX G_DIR_SEPARATOR_S ICON_PATH G_DIR_SEPARATOR_S \
+                          "simple-client-test-icon-active.png"
 
 
 unsigned long buffer[] = {
@@ -124,6 +141,7 @@ unsigned long buffer[] = {
 };
 
 Display *display;
+Window window;
 int screen_num;
 static char *appname;
 
@@ -182,8 +200,108 @@ send_systray_message(Display *d, long message, long tray_window, long data2, lon
   }
 }
 
+
+static void
+label_toggle_cb(GtkWidget *widget, gpointer data) {
+  can_haz_label = !can_haz_label;
+
+  if (can_haz_label) {
+    gtk_menu_item_set_label(GTK_MENU_ITEM(widget), "Hide label");
+  } else {
+    gtk_menu_item_set_label(GTK_MENU_ITEM(widget), "Show label");
+  }
+
+  return;
+}
+
+static void
+activate_clicked_cb(GtkWidget *widget, gpointer data) {
+  AppIndicator *ci = APP_INDICATOR(data);
+
+  if (active) {
+    app_indicator_set_status(ci, APP_INDICATOR_STATUS_ATTENTION);
+    gtk_menu_item_set_label(GTK_MENU_ITEM(widget), "I'm okay now");
+    active = FALSE;
+  } else {
+    app_indicator_set_status(ci, APP_INDICATOR_STATUS_ACTIVE);
+    gtk_menu_item_set_label(GTK_MENU_ITEM(widget), "Get Attention");
+    active = TRUE;
+  }
+
+  changed_active = TRUE;
+
+  return;
+}
+
+static void
+reset_icons(AppIndicator *ci) {
+  if (gtk_check_menu_item_get_active(GTK_CHECK_MENU_ITEM(local_theme_menu))) {
+    app_indicator_set_icon_theme_path(ci, ICON_PATH);
+    app_indicator_set_icon_full(ci, "custom-themed-icon", "Custom Themed Icon");
+    app_indicator_set_attention_icon_full(ci, "custom-themed-icon-attention", "CUstom Themed Icon for Attention");
+  } else {
+    app_indicator_set_icon_full(ci, DEFAULT_ICON, "System Icon");
+    app_indicator_set_attention_icon_full(ci, DEFAULT_ACTIVE_ICON, "System Active Icon");
+    app_indicator_set_icon_theme_path(ci, NULL);
+  }
+
+  changed_active = TRUE;
+  return;
+}
+
+static void
+local_icon_toggle_cb(GtkWidget *widget, gpointer data) {
+  AppIndicator *ci = APP_INDICATOR(data);
+
+  if (gtk_check_menu_item_get_active(GTK_CHECK_MENU_ITEM(widget))) {
+    app_indicator_set_icon_full(ci, LOCAL_ICON, "Local Icon");
+    app_indicator_set_attention_icon_full(ci, LOCAL_ACTIVE_ICON, "Local Attention Icon");
+  } else {
+    reset_icons(ci);
+  }
+
+  return;
+}
+
+static void
+local_theme_toggle_cb(GtkWidget *widget, gpointer data) {
+  if (!gtk_check_menu_item_get_active(GTK_CHECK_MENU_ITEM(local_icon_menu))) {
+    reset_icons(APP_INDICATOR(data));
+  }
+
+  return;
+}
+
+static void
+item_clicked_cb(GtkWidget *widget, gpointer data) {
+  const gchar *text = (const gchar *) data;
+
+  g_print("%s clicked!\n", text);
+}
+
+static void
+toggle_sensitivity_cb(GtkWidget *widget, gpointer data) {
+  GtkWidget *target = (GtkWidget *) data;
+
+  gtk_widget_set_sensitive(target, !gtk_widget_is_sensitive(target));
+}
+
+static void
+image_clicked_cb(GtkWidget *widget, gpointer data) {
+  gtk_image_set_from_stock(GTK_IMAGE (gtk_image_menu_item_get_image(
+      GTK_IMAGE_MENU_ITEM(widget))),
+      GTK_STOCK_OPEN, GTK_ICON_SIZE_MENU);
+}
+
+guint percentage = 0;
+
+gpointer go(gpointer data) {
+  mainloop = g_main_loop_new(NULL, FALSE);
+  g_main_loop_run(mainloop);
+  return 0;
+}
+
 int main(int argc, char *argv[]) {
-  Window window, tray_window;
   int win_x, win_y;
   unsigned int win_width, win_height;
   unsigned int border_width = 1;
@@ -262,7 +380,7 @@ int main(int argc, char *argv[]) {
 
   /*  Choose which events we want to handle  */
   XSelectInput(display, window, ExposureMask | KeyPressMask |
-      ButtonPressMask | StructureNotifyMask);
+      ButtonPressMask | StructureNotifyMask | PropertyChangeMask);
 
   /*  Load a font called "9x15"  */
   if ((font_info = XLoadQueryFont(display, "10x20")) == NULL) {
@@ -292,6 +410,46 @@ int main(int argc, char *argv[]) {
   XChangeProperty(display, window, net_wm_name, utf8_string, 8,
       PropModeReplace, (const unsigned char *) wmname, 10);
 
+
+  GtkWidget *menu = NULL;
+  AppIndicator *app_indicator = NULL;
+
+  gtk_init(&argc, &argv);
+
+  app_indicator = app_indicator_new("example-simple-client",
+      DEFAULT_ICON,
+      APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
+
+  g_assert (IS_APP_INDICATOR(app_indicator));
+  g_assert (G_IS_OBJECT(app_indicator));
+
+  app_indicator_set_status(app_indicator, APP_INDICATOR_STATUS_ACTIVE);
+  app_indicator_set_attention_icon_full(app_indicator, DEFAULT_ACTIVE_ICON, "System Attention Icon");
+  app_indicator_set_label(app_indicator, "1%", "100%");
+  app_indicator_set_title(app_indicator, "Test Inidcator");
+
+  menu = gtk_menu_new();
+  GtkWidget *item;
+
+  item = gtk_menu_item_new_with_label("Get Attention");
+  local_icon_menu = item;
+  g_signal_connect (item, "activate",
+      G_CALLBACK(activate_clicked_cb), app_indicator);
+  gtk_menu_shell_append(GTK_MENU_SHELL (menu), item);
+  gtk_widget_show(item);
+  app_indicator_set_secondary_activate_target(app_indicator, item);
+
+  item = gtk_check_menu_item_new_with_label("Enable Local Theme");
+  local_theme_menu = item;
+  g_signal_connect (item, "activate",
+      G_CALLBACK(local_theme_toggle_cb), app_indicator);
+  gtk_menu_shell_append(GTK_MENU_SHELL (menu), item);
+  gtk_widget_show(item);
+
+  app_indicator_set_menu(app_indicator, GTK_MENU (menu));
+
+  g_thread_new("main loop", (GThreadFunc) go, 0);
+
   /*  Enter event loop  */
   while (1) {
     static char *message = "cool nzce job";
@@ -300,6 +458,10 @@ int main(int argc, char *argv[]) {
     static int msg_x, msg_y;
 
     XNextEvent(display, &report);
+    if (changed_active) {
+      XMapWindow(display, window);
+      changed_active = FALSE;
+    }
     KeySym keysym;
     switch (report.type) {
       case Expose:
@@ -328,21 +490,17 @@ int main(int argc, char *argv[]) {
         break;
 
       case KeyPress:
-        /*  Clean up and exit  */
         keysym = XLookupKeysym(&report.xkey, 0);
         if (keysym == XK_Escape) {
+          /*  Clean up and exit  */
           XUnloadFont(display, font_info->fid);
           XFreeGC(display, gc);
           XCloseDisplay(display);
           exit(EXIT_SUCCESS);
-        } else if (keysym == XK_a) {
+        } else if (keysym == XK_q) {
           XUnmapWindow(display, window);
-          send_systray_message(display, SYSTEM_TRAY_REQUEST_DOCK, window, 0, 0);
-          // todo XMapWindow(display, window);
-        } else if (keysym == XK_s) {
-          printf("pressed s");
         } else {
-          printf("key %lu\n", keysym);
+          printf("unhandled KeyPress %lu\n", keysym);
         }
     }
   }
