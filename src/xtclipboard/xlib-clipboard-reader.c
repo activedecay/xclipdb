@@ -1,3 +1,8 @@
+/* "pure" x11 xlib xmu(x miscellaneous utils) to read the clipboard
+ *
+ * pretty much all we'd need to do is understand the message passing
+ * niceties that xt is doing for us with XtOwnSelection and friends. */
+
 #include <X11/X.h>
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
