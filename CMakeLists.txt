@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.15)
 project(x C)
 
+add_subdirectory(src/xtclipboard)
+
 find_package(X11)
-message(wtf goddamnit ${X11_X11_INCLUDE_PATH})
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(appindicator REQUIRED IMPORTED_TARGET appindicator3-0.1)
 pkg_check_modules(x11xcb REQUIRED IMPORTED_TARGET x11-xcb)
