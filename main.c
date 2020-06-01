@@ -625,6 +625,7 @@ main(int argc, char *argv[]) {
   XtAppContext xtcontext;
   Widget parent;
 
+  XInitThreads();
   XtSetLanguageProc(NULL, NULL, NULL);
 
   top = XtAppInitialize(&xtcontext, "Xclipdb", table, XtNumber(table),
@@ -736,7 +737,7 @@ main(int argc, char *argv[]) {
 
   mainloop = g_main_loop_new(NULL, FALSE);
   g_thread_new("main", (GThreadFunc) daemonize_appindicator, 0);
-  g_thread_new("globalhotkey", (GThreadFunc) global_hotkey_listener, 0);
+  //g_thread_new("globalhotkey", (GThreadFunc) global_hotkey_listener, 0);
 
   /* *** run xt application forever *** */
 
