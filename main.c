@@ -22,6 +22,7 @@
 #include <X11/Xfuncs.h>
 
 #include <stdlib.h>
+#include <inttypes.h>
 
 #define Command commandWidgetClass
 #define Label   labelWidgetClass
@@ -584,9 +585,36 @@ appindicator_menu_clicked(GtkWidget *_, gpointer data) {
   XFlush(XtDisplay(top));
 }
 
+gboolean die = FALSE;
+static gboolean
+global_hotkey_listener(gpointer _) {
+  Display *dpy = XtDisplay(top);
+  Window root = DefaultRootWindow(dpy);
+  XEvent ev;
+
+  unsigned int modifiers = Mod4Mask;
+  int keycode = XKeysymToKeycode(dpy, XK_v);
+
+  XGrabKey(dpy, keycode, modifiers, root, False,
+      GrabModeAsync, GrabModeAsync);
+  XSelectInput(dpy, root, KeyPressMask);
+
+  int shouldQuit = 0;
+  while (!die) {
+    XNextEvent(dpy, &ev);
+    if (ev.type == KeyPress) {
+      printf("pressed it! "
+             "%"PRIi32",%"PRIi32"\n",
+          ev.xbutton.x, ev.xbutton.y);
+    }
+  }
+  return TRUE;
+}
+
 static gboolean
 daemonize_appindicator(gpointer _) {
   g_main_loop_run(mainloop);
+  die = TRUE;
   return TRUE;
 }
 
@@ -708,6 +736,7 @@ main(int argc, char *argv[]) {
 
   mainloop = g_main_loop_new(NULL, FALSE);
   g_thread_new("main", (GThreadFunc) daemonize_appindicator, 0);
+  g_thread_new("globalhotkey", (GThreadFunc) global_hotkey_listener, 0);
 
   /* *** run xt application forever *** */
 

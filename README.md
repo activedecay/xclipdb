@@ -77,3 +77,17 @@ https://specifications.freedesktop.org/systemtray-spec/systemtray-spec-0.2.html
 # the missing documentation for
 xcb_key_press_lookup_keysym
 git clone --recursive git://anongit.freedesktop.org/git/xcb/util-keysyms
+
+# notes
+/usr/include/X11/X.h:221 ShiftMask ... etc
+https://stackoverflow.com/a/29001687/823282
+Mask        | Value | Key
+------------+-------+------------
+ShiftMask   |     1 | Shift
+LockMask    |     2 | Caps Lock
+ControlMask |     4 | Ctrl
+Mod1Mask    |     8 | Alt
+Mod2Mask    |    16 | Num Lock
+Mod3Mask    |    32 | Scroll Lock
+Mod4Mask    |    64 | Windows
+Mod5Mask    |   128 | ISO_Level3_Shift
